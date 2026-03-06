@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agel AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap');
+        
+        body {
+            font-family: 'Google Sans', sans-serif;
+            background-color: #f8fafd;
+            color: #1f1f1f;
+        }
+
+        /* Sidebar transitions */
+        .sidebar {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            width: 280px;
+        }
+        .sidebar.closed {
+            width: 0;
+            opacity: 0;
+            overflow: hidden;
+            padding: 0;
+            border: none;
+        }
+
+        /* Gradient text for welcome message */
+        .gradient-text {
+            background: linear-gradient(90deg, #4285f4, #9b72cb, #d96570);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Chat window area */
+        #chat-window {
+            scrollbar-width: thin;
+            scrollbar-color: #e3e3e3 transparent;
+        }
+
+        /* Message bubbles */
+        .user-message-wrapper {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 24px;
+        }
+        .user-message {
+            background-color: #e9eef6;
+            padding: 12px 20px;
+            border-radius: 20px;
+            max-width: 80%;
+        }
+        .ai-message-wrapper {
+            display: flex;
+            justify-content: flex-start;
+            margin-bottom: 32px;
+        }
+        .ai-message {
+            max-width: 90%;
+            line-height: 1.6;
+        }
+
+        /* Animated typing */
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            background: #4285f4;
+            border-radius: 50%;
+            display: inline-block;
+            animation: bounce 1s infinite ease-in-out;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        /* Gradient "Atmosphere" - Chế độ không khí bay */
+        .input-atmosphere {
+            position: relative;
+            padding: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .atmosphere-glow {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 600px;
+            height: 150px;
+            background: radial-gradient(circle, rgba(66, 133, 244, 0.12) 0%, rgba(155, 114, 203, 0.08) 40%, transparent 70%);
+            filter: blur(40px);
+            z-index: 0;
+            animation: drift 8s infinite alternate ease-in-out;
+            pointer-events: none;
+        }
+
+        @keyframes drift {
+            from { transform: translate(-55%, -45%) scale(1); opacity: 0.6; }
+            to { transform: translate(-45%, -55%) scale(1.1); opacity: 0.9; }
+        }
+
+        /* Main search/input bar */
+        .input-container {
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            border: 1px solid #dfe1e5;
+            background-color: white;
+            z-index: 10;
+        }
+        .input-container:focus-within {
+            box-shadow: 0 4px 18px rgba(0,0,0,0.1);
+            border-color: #4285f4;
+        }
+
+        .hidden-chatting {
+            display: none !important;
+        }
+
+        .animate-fadeIn {
+            animation: fadeIn 0.4s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar closed bg-[#f0f4f9] border-r border-gray-200 flex flex-col z-50">
+        <div class="p-4 flex items-center justify-between">
+            <h2 class="font-medium text-gray-700 font-bold">Lịch sử</h2>
+        </div>
+        <div class="flex-1 overflow-y-auto p-2">
+            <div class="p-3 text-sm text-gray-500 italic">Tính năng đang phát triển...</div>
+        </div>
+        <div class="p-4 border-t border-gray-200">
+            <button id="clear-btn" class="flex items-center gap-3 text-sm text-gray-600 hover:text-red-500 w-full p-2 transition-colors">
+                <i class="fas fa-redo"></i> Làm mới hội thoại
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main View -->
+    <div class="flex-1 flex flex-col min-w-0 relative">
+        
+        <!-- Top Navigation -->
+        <header class="p-4 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <button id="toggle-sidebar" class="p-2 hover:bg-gray-200 rounded-full transition-colors" title="Mở thanh bên">
+                    <i class="fas fa-bars text-xl text-gray-600"></i>
+                </button>
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-brain text-2xl text-blue-600"></i>
+                    <h1 class="font-bold text-xl text-gray-700 select-none tracking-tight">Agel</h1>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold border border-blue-200 shadow-sm">
+                    A
+                </div>
+            </div>
+        </header>
+
+        <!-- Chat/Landing Window -->
+        <main id="chat-window" class="flex-1 overflow-y-auto px-4 md:px-0">
+            <!-- Landing State -->
+            <div id="landing-state" class="h-full flex flex-col items-center justify-center max-w-4xl mx-auto px-4 text-center">
+                <h2 id="welcome-text" class="text-4xl md:text-5xl font-bold mb-12 gradient-text leading-tight">
+                    Xin chào!<br>Chúng ta nên bắt đầu từ đâu nhỉ?
+                </h2>
+                
+                <!-- Quick actions -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-3xl">
+                    <button onclick="quickAction('Tạo một hình ảnh về chú mèo đi phi hành gia')" class="bg-white border border-gray-100 p-5 rounded-2xl text-left hover:border-blue-300 hover:bg-blue-50/50 transition-all text-sm shadow-sm group">
+                        <i class="fas fa-image text-blue-500 text-lg mb-2 group-hover:scale-110 transition-transform"></i>
+                        <p class="font-bold text-gray-700">Tạo hình ảnh</p>
+                        <p class="text-xs text-gray-500 mt-1">Sáng tạo nội dung hình ảnh...</p>
+                    </button>
+                    <button onclick="quickAction('Viết một bài hát ngắn về cà phê')" class="bg-white border border-gray-100 p-5 rounded-2xl text-left hover:border-purple-300 hover:bg-purple-50/50 transition-all text-sm shadow-sm group">
+                        <i class="fas fa-pen-fancy text-purple-500 text-lg mb-2 group-hover:scale-110 transition-transform"></i>
+                        <p class="font-bold text-gray-700">Sáng tác</p>
+                        <p class="text-xs text-gray-500 mt-1">Viết thơ, bài hát, kịch bản...</p>
+                    </button>
+                    <button onclick="quickAction('Lập kế hoạch du lịch 3 ngày tại Đà Lạt')" class="bg-white border border-gray-100 p-5 rounded-2xl text-left hover:border-orange-300 hover:bg-orange-50/50 transition-all text-sm shadow-sm group">
+                        <i class="fas fa-lightbulb text-orange-500 text-lg mb-2 group-hover:scale-110 transition-transform"></i>
+                        <p class="font-bold text-gray-700">Ý tưởng</p>
+                        <p class="text-xs text-gray-500 mt-1">Tiết kiệm thời gian lập kế hoạch...</p>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Chat Content State -->
+            <div id="chat-content" class="hidden max-w-3xl mx-auto py-8">
+                <!-- Messages will appear here -->
+            </div>
+        </main>
+
+        <!-- Bottom Input Area with Atmosphere -->
+        <div class="flex flex-col items-center">
+            <div class="input-atmosphere">
+                <!-- Làn sương màu bay lơ lửng -->
+                <div class="atmosphere-glow"></div>
+                
+                <div class="w-full max-w-3xl relative">
+                    <form id="chat-form" class="input-container flex items-center rounded-[32px] px-6 py-4 relative">
+                        <!-- Input ẩn cho tải tệp -->
+                        <input type="file" id="file-upload" class="hidden">
+                        <button type="button" id="upload-btn" class="text-gray-400 hover:text-blue-600 mr-4 transition-colors" title="Tải tệp lên">
+                            <i class="fas fa-plus-circle text-xl"></i>
+                        </button>
+                        
+                        <input 
+                            type="text" 
+                            id="user-input" 
+                            placeholder="Hỏi Agel..." 
+                            class="flex-1 bg-transparent border-none focus:outline-none text-[16px] py-1"
+                            autocomplete="off"
+                        >
+                        
+                        <div class="flex items-center gap-5 ml-2">
+                            <button type="button" id="live-btn" class="text-gray-400 hover:text-red-500 transition-colors" title="Live (Trò chuyện trực tiếp)">
+                                <i class="fas fa-microphone text-xl"></i>
+                            </button>
+                            <button type="submit" id="send-btn" class="text-gray-400 hover:text-blue-600 disabled:opacity-30 transition-all">
+                                <i class="fas fa-paper-plane text-xl"></i>
+                            </button>
+                        </div>
+                    </form>
+                    <p class="text-center text-[11px] text-gray-400 mt-4 font-medium relative z-10">
+                        Agel luôn cố gắng thông minh và trả lời đúng cho bạn.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const apiKey = "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"; 
+        const sidebar = document.getElementById('sidebar');
+        const toggleSidebar = document.getElementById('toggle-sidebar');
+        const landingState = document.getElementById('landing-state');
+        const chatContent = document.getElementById('chat-content');
+        const chatWindow = document.getElementById('chat-window');
+        const welcomeText = document.getElementById('welcome-text');
+        const userInput = document.getElementById('user-input');
+        const chatForm = document.getElementById('chat-form');
+        const sendBtn = document.getElementById('send-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const uploadBtn = document.getElementById('upload-btn');
+        const fileInput = document.getElementById('file-upload');
+        const liveBtn = document.getElementById('live-btn');
+
+        let chatHistory = [];
+        let isChatting = false;
+        
+        const systemPrompt = "Bạn là Agel AI. Bạn thông minh, chân thực và thân thiện.Bạn thông minh và thân thiện với mọi người. Hãy trả lời bằng tiếng Việt một cách tự nhiên nhất.";
+
+        const greetings = [
+            "Chào bạn,<br>hôm nay khám phá gì nào?",
+            "Chúng ta<br>hãy bắt đầu!",
+            "Sáng tạo<br>nên ý tưởng thôi nào!"
+        ];
+
+        function setRandomGreeting() {
+            const random = Math.floor(Math.random() * greetings.length);
+            welcomeText.innerHTML = greetings[random];
+        }
+
+        // --- Logic Ngầm Cho Các Nút Tính Năng ---
+        
+        // Tải tệp lên
+        uploadBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                const fileName = e.target.files[0].name;
+                appendMessage('user', `[Tải tệp: ${fileName}]`);
+                // Ở đây có thể thêm logic xử lý tệp
+            }
+        });
+
+        // Tính năng Live (Hiện tại chỉ giả lập bật/tắt mic)
+        let isLive = false;
+        liveBtn.addEventListener('click', () => {
+            isLive = !isLive;
+            liveBtn.classList.toggle('text-red-500', isLive);
+            liveBtn.classList.toggle('text-gray-400', !isLive);
+            if (isLive) {
+                console.log("Tính năng Live đã được kích hoạt.");
+            }
+        });
+
+        // Toggle Sidebar
+        toggleSidebar.addEventListener('click', () => {
+            sidebar.classList.toggle('closed');
+        });
+
+        window.quickAction = (text) => {
+            userInput.value = text;
+            chatForm.dispatchEvent(new Event('submit'));
+        };
+
+        function scrollChat() {
+            chatWindow.scrollTo({ top: chatWindow.scrollHeight, behavior: 'smooth' });
+        }
+
+        function appendMessage(role, text) {
+            if (!isChatting) {
+                isChatting = true;
+                landingState.classList.add('hidden-chatting');
+                chatContent.classList.remove('hidden');
+            }
+
+            const wrapper = document.createElement('div');
+            wrapper.className = role === 'user' ? 'user-message-wrapper' : 'ai-message-wrapper';
+            
+            if (role === 'user') {
+                wrapper.innerHTML = `<div class="user-message animate-fadeIn shadow-sm">${text}</div>`;
+            } else {
+                wrapper.innerHTML = `
+                    <div class="ai-message animate-fadeIn">
+                        <div class="flex items-start gap-4">
+                            <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0 mt-1 shadow-md">
+                                <i class="fas fa-brain text-white text-sm"></i>
+                            </div>
+                            <div class="prose max-w-none text-gray-800 pt-1 leading-relaxed">${text.replace(/\n/g, '<br>')}</div>
+                        </div>
+                    </div>`;
+            }
+            
+            chatContent.appendChild(wrapper);
+            scrollChat();
+        }
+
+        function showTyping() {
+            const loader = document.createElement('div');
+            loader.id = 'typing-indicator';
+            loader.className = 'ai-message-wrapper';
+            loader.innerHTML = `
+                <div class="ai-message">
+                    <div class="flex items-center gap-4">
+                        <div class="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
+                            <i class="fas fa-brain text-gray-300 text-sm"></i>
+                        </div>
+                        <div class="flex gap-1 ml-1">
+                            <span class="typing-dot" style="animation-delay: 0.1s"></span>
+                            <span class="typing-dot" style="animation-delay: 0.2s"></span>
+                            <span class="typing-dot" style="animation-delay: 0.3s"></span>
+                        </div>
+                    </div>
+                </div>`;
+            chatContent.appendChild(loader);
+            scrollChat();
+        }
+
+        function hideTyping() {
+            const loader = document.getElementById('typing-indicator');
+            if (loader) loader.remove();
+        }
+
+        async function getAIResponse(prompt, retries = 5, delay = 1000) {
+            const url = `https://api.openai.com/v1/chat/completions`;
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [...chatHistory, { role: "user", parts: [{ text: prompt }] }],
+                        systemInstruction: { parts: [{ text: systemPrompt }] }
+                    })
+                });
+
+                if (!response.ok) {
+                    if (retries > 0 && response.status >= 500) {
+                        await new Promise(r => setTimeout(r, delay));
+                        return getAIResponse(prompt, retries - 1, delay * 2);
+                    }
+                    throw new Error("API Error");
+                }
+
+                const data = await response.json();
+                return data.candidates?.[0]?.content?.parts?.[0]?.text || "Agel không thể phản hồi vào lúc này.";
+            } catch (error) {
+                if (retries > 0) {
+                    await new Promise(r => setTimeout(r, delay));
+                    return getAIResponse(prompt, retries - 1, delay * 2);
+                }
+                return "Lỗi kết nối mạng, vui lòng kiểm tra lại.";
+            }
+        }
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            userInput.value = '';
+            userInput.disabled = true;
+            sendBtn.disabled = true;
+
+            appendMessage('user', text);
+            showTyping();
+
+            const aiText = await getAIResponse(text);
+            
+            hideTyping();
+            appendMessage('ai', aiText);
+
+            chatHistory.push({ role: "user", parts: [{ text: text }] });
+            chatHistory.push({ role: "model", parts: [{ text: aiText }] });
+
+            userInput.disabled = false;
+            sendBtn.disabled = false;
+            userInput.focus();
+        });
+
+        clearBtn.addEventListener('click', () => {
+            chatContent.innerHTML = '';
+            chatHistory = [];
+            isChatting = false;
+            landingState.classList.remove('hidden-chatting');
+            chatContent.classList.add('hidden');
+            setRandomGreeting();
+            if (window.innerWidth < 768) sidebar.classList.add('closed');
+        });
+
+        window.onload = () => {
+            setRandomGreeting();
+            userInput.focus();
+        };
+    </script>
+</body>
+</html>
